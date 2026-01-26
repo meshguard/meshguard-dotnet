@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageId>MeshGuard.SemanticKernel</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>MeshGuard</Authors>
+    <Company>MeshGuard</Company>
+    <Description>MeshGuard governance integration for Microsoft Semantic Kernel — policy enforcement, audit logging, and trust tiers for AI agents</Description>
+    <PackageProjectUrl>https://meshguard.app</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/meshguard/meshguard-dotnet</RepositoryUrl>
+    <PackageTags>ai;agents;governance;security;meshguard;semantic-kernel;microsoft;copilot</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../MeshGuard/MeshGuard.csproj" />
+    <PackageReference Include="Microsoft.SemanticKernel.Abstractions" Version="1.*" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.*" />
+  </ItemGroup>
+</Project>

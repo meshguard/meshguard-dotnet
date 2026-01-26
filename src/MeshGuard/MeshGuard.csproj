@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageId>MeshGuard</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>MeshGuard</Authors>
+    <Company>MeshGuard</Company>
+    <Description>MeshGuard .NET SDK — Governance control plane for AI agents</Description>
+    <PackageProjectUrl>https://meshguard.app</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/meshguard/meshguard-dotnet</RepositoryUrl>
+    <PackageTags>ai;agents;governance;security;policy;meshguard;semantic-kernel</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+</Project>
