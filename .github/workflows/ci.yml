@@ -12,6 +12,13 @@ jobs:
     strategy:
       matrix:
         dotnet-version: ["6.0.x", "7.0.x", "8.0.x"]
+        include:
+          - dotnet-version: "6.0.x"
+            tfm: net6.0
+          - dotnet-version: "7.0.x"
+            tfm: net7.0
+          - dotnet-version: "8.0.x"
+            tfm: net8.0
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -28,12 +35,12 @@ jobs:
       - name: Build (Core)
         if: matrix.dotnet-version != '8.0.x'
         run: |
-          dotnet build src/MeshGuard/MeshGuard.csproj --no-restore --configuration Release
-          dotnet build tests/MeshGuard.Tests/MeshGuard.Tests.csproj --no-restore --configuration Release
+          dotnet build src/MeshGuard/MeshGuard.csproj --no-restore --configuration Release -f ${{ matrix.tfm }}
+          dotnet build tests/MeshGuard.Tests/MeshGuard.Tests.csproj --no-restore --configuration Release -f ${{ matrix.tfm }}
 
       - name: Test (Core)
         if: matrix.dotnet-version != '8.0.x'
-        run: dotnet test tests/MeshGuard.Tests/MeshGuard.Tests.csproj --no-build --configuration Release --verbosity normal
+        run: dotnet test tests/MeshGuard.Tests/MeshGuard.Tests.csproj --no-build --configuration Release -f ${{ matrix.tfm }} --verbosity normal
 
       # For .NET 8.0, build everything including SemanticKernel
       - name: Restore (Full)
@@ -42,11 +49,11 @@ jobs:
 
       - name: Build (Full)
         if: matrix.dotnet-version == '8.0.x'
-        run: dotnet build --no-restore --configuration Release
+        run: dotnet build --no-restore --configuration Release -f ${{ matrix.tfm }}
 
       - name: Test (Full)
         if: matrix.dotnet-version == '8.0.x'
-        run: dotnet test --no-build --configuration Release --verbosity normal
+        run: dotnet test tests/MeshGuard.Tests/MeshGuard.Tests.csproj --no-build --configuration Release -f ${{ matrix.tfm }} --verbosity normal
 
   pack:
     runs-on: ubuntu-latest
