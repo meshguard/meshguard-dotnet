@@ -1,18 +1,35 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.SemanticKernel;
-using MeshGuard;
 
 namespace MeshGuard.SemanticKernel;
 
 /// <summary>
-/// Extension methods for adding MeshGuard governance to Semantic Kernel.
+/// Extension methods for configuring MeshGuard governance with Semantic Kernel.
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Add MeshGuard governance to the Semantic Kernel pipeline.
-    /// All function invocations will be checked against MeshGuard policies.
+    /// Adds MeshGuard governance to the Semantic Kernel service collection.
     /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configure">Configuration action.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <example>
+    /// <code>
+    /// var builder = Kernel.CreateBuilder();
+    /// builder.AddOpenAIChatCompletion("gpt-4", apiKey);
+    /// 
+    /// builder.Services.AddMeshGuardGovernance(options =>
+    /// {
+    ///     options.GatewayUrl = "https://dashboard.meshguard.app";
+    ///     options.AgentToken = Environment.GetEnvironmentVariable("MESHGUARD_AGENT_TOKEN")!;
+    ///     options.AgentId = "copilot-assistant";
+    ///     options.DefaultTrustTier = "verified";
+    /// });
+    /// 
+    /// var kernel = builder.Build();
+    /// </code>
+    /// </example>
     public static IServiceCollection AddMeshGuardGovernance(
         this IServiceCollection services,
         Action<MeshGuardGovernanceOptions> configure)
@@ -20,42 +37,95 @@ public static class ServiceCollectionExtensions
         var options = new MeshGuardGovernanceOptions();
         configure(options);
 
-        var client = new MeshGuardClient(new MeshGuardOptions
+        // Register the MeshGuard client
+        services.AddSingleton<MeshGuardClient>(sp =>
         {
-            GatewayUrl = options.GatewayUrl,
-            ApiKey = options.ApiKey,
-            TimeoutSeconds = options.TimeoutSeconds,
+            return new MeshGuardClient(new MeshGuardOptions
+            {
+                GatewayUrl = options.GatewayUrl,
+                AgentToken = options.AgentToken,
+                AdminToken = options.AdminToken,
+                TimeoutSeconds = options.TimeoutSeconds,
+            });
         });
 
-        services.AddSingleton(client);
-        services.AddSingleton(options);
-        services.AddSingleton<IFunctionInvocationFilter>(
-            sp => new MeshGuardFilter(client, options));
+        // Register the filter
+        services.AddSingleton<IFunctionInvocationFilter>(sp =>
+        {
+            var client = sp.GetRequiredService<MeshGuardClient>();
+            return new MeshGuardFilter(client, options.AgentId, new MeshGuardFilterOptions
+            {
+                ThrowOnDeny = options.ThrowOnDeny,
+                AuditEnabled = options.AuditEnabled,
+                ActionFormat = options.ActionFormat,
+            });
+        });
 
         return services;
+    }
+
+    /// <summary>
+    /// Adds MeshGuard governance to the Kernel builder.
+    /// </summary>
+    /// <param name="builder">The kernel builder.</param>
+    /// <param name="configure">Configuration action.</param>
+    /// <returns>The kernel builder for chaining.</returns>
+    public static IKernelBuilder AddMeshGuardGovernance(
+        this IKernelBuilder builder,
+        Action<MeshGuardGovernanceOptions> configure)
+    {
+        builder.Services.AddMeshGuardGovernance(configure);
+        return builder;
     }
 }
 
 /// <summary>
-/// Configuration options for MeshGuard governance in Semantic Kernel.
+/// Configuration options for MeshGuard governance with Semantic Kernel.
 /// </summary>
 public class MeshGuardGovernanceOptions
 {
-    /// <summary>MeshGuard gateway URL.</summary>
+    /// <summary>
+    /// MeshGuard gateway URL. Required.
+    /// </summary>
     public string GatewayUrl { get; set; } = "https://dashboard.meshguard.app";
 
-    /// <summary>MeshGuard API key for authentication.</summary>
-    public string ApiKey { get; set; } = string.Empty;
+    /// <summary>
+    /// Agent JWT token for policy checks. Required.
+    /// </summary>
+    public string AgentToken { get; set; } = string.Empty;
 
-    /// <summary>Agent ID for audit logging and policy evaluation.</summary>
+    /// <summary>
+    /// Admin token for management operations. Optional.
+    /// </summary>
+    public string? AdminToken { get; set; }
+
+    /// <summary>
+    /// Agent ID to use for policy checks and audit logging. Required.
+    /// </summary>
     public string AgentId { get; set; } = string.Empty;
 
-    /// <summary>Default trust tier for this agent.</summary>
-    public string DefaultTrustTier { get; set; } = "sandboxed";
+    /// <summary>
+    /// Default trust tier for the agent. Used in policy evaluation context.
+    /// </summary>
+    public string DefaultTrustTier { get; set; } = "verified";
 
-    /// <summary>Whether to throw an exception when an action is denied.</summary>
-    public bool ThrowOnDenied { get; set; } = true;
-
-    /// <summary>HTTP timeout in seconds.</summary>
+    /// <summary>
+    /// Request timeout in seconds. Default: 30.
+    /// </summary>
     public int TimeoutSeconds { get; set; } = 30;
+
+    /// <summary>
+    /// Whether to throw exceptions on policy denial. Default: true.
+    /// </summary>
+    public bool ThrowOnDeny { get; set; } = true;
+
+    /// <summary>
+    /// Whether to log audit entries. Default: true.
+    /// </summary>
+    public bool AuditEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Action format string. Default: "invoke:{plugin}.{function}".
+    /// </summary>
+    public string ActionFormat { get; set; } = "invoke:{plugin}.{function}";
 }

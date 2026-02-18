@@ -1,86 +1,131 @@
 using Microsoft.SemanticKernel;
-using MeshGuard;
 
 namespace MeshGuard.SemanticKernel;
 
 /// <summary>
 /// Semantic Kernel function invocation filter that enforces MeshGuard governance policies.
-/// Every function call is checked against MeshGuard before execution and audit-logged after.
 /// </summary>
+/// <remarks>
+/// This filter intercepts all function invocations in the Semantic Kernel and checks
+/// them against MeshGuard policies before execution. If the action is denied,
+/// a <see cref="PolicyDeniedException"/> is thrown.
+/// </remarks>
+/// <example>
+/// <code>
+/// // Add filter via dependency injection
+/// builder.Services.AddMeshGuardGovernance(options =>
+/// {
+///     options.GatewayUrl = "https://dashboard.meshguard.app";
+///     options.AgentToken = Environment.GetEnvironmentVariable("MESHGUARD_AGENT_TOKEN")!;
+///     options.AgentId = "my-copilot-agent";
+/// });
+/// 
+/// // Or add manually
+/// kernel.FunctionInvocationFilters.Add(new MeshGuardFilter(client, "my-agent-id"));
+/// </code>
+/// </example>
 public class MeshGuardFilter : IFunctionInvocationFilter
 {
     private readonly MeshGuardClient _client;
-    private readonly MeshGuardGovernanceOptions _options;
+    private readonly string _agentId;
+    private readonly MeshGuardFilterOptions _filterOptions;
 
-    public MeshGuardFilter(MeshGuardClient client, MeshGuardGovernanceOptions options)
+    /// <summary>
+    /// Creates a new MeshGuard governance filter.
+    /// </summary>
+    /// <param name="client">MeshGuard client instance.</param>
+    /// <param name="agentId">Agent ID to use for policy checks.</param>
+    /// <param name="options">Optional filter configuration.</param>
+    public MeshGuardFilter(
+        MeshGuardClient client, 
+        string agentId,
+        MeshGuardFilterOptions? options = null)
     {
-        _client = client;
-        _options = options;
+        _client = client ?? throw new ArgumentNullException(nameof(client));
+        _agentId = agentId ?? throw new ArgumentNullException(nameof(agentId));
+        _filterOptions = options ?? new MeshGuardFilterOptions();
     }
 
+    /// <summary>
+    /// Invoked before and after a function is executed.
+    /// </summary>
     public async Task OnFunctionInvocationAsync(
         FunctionInvocationContext context,
         Func<FunctionInvocationContext, Task> next)
     {
-        var action = $"invoke:{context.Function.PluginName}.{context.Function.Name}";
-        var resource = context.Function.PluginName;
+        var pluginName = context.Function.PluginName ?? "unknown";
+        var functionName = context.Function.Name;
+        var action = FormatAction(pluginName, functionName);
 
         // Check permission before execution
-        var request = new PermissionRequest
+        var decision = await _client.CheckAsync(action);
+
+        if (!decision.Allowed)
         {
-            AgentId = _options.AgentId,
-            Action = action,
-            Resource = resource,
-            Context = new
+            if (_filterOptions.ThrowOnDeny)
             {
-                plugin = context.Function.PluginName,
-                function_name = context.Function.Name,
-                arguments = context.Arguments?.ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => kvp.Value?.ToString()
-                ),
-                trust_tier = _options.DefaultTrustTier,
+                throw new PolicyDeniedException(
+                    action: action,
+                    policy: decision.Policy,
+                    rule: decision.Rule,
+                    reason: decision.Reason ?? "Function invocation denied by MeshGuard policy"
+                );
             }
-        };
-
-        var result = await _client.CheckPermissionAsync(request);
-
-        if (!result.Allowed)
-        {
-            // Log the denial
-            await _client.LogAuditAsync(new AuditEntry
-            {
-                AgentId = _options.AgentId,
-                Action = action,
-                Resource = resource,
-                Result = "deny",
-                Details = new { reason = result.Reason, policy = result.Policy }
-            });
-
-            if (_options.ThrowOnDenied)
-            {
-                throw new MeshGuardDeniedException(result.Reason, request);
-            }
-
-            // Skip function execution
+            
+            // Skip execution if not throwing
             return;
         }
 
         // Execute the function
         await next(context);
 
-        // Audit log the allowed action
-        await _client.LogAuditAsync(new AuditEntry
+        // Log audit entry if enabled
+        if (_filterOptions.AuditEnabled)
         {
-            AgentId = _options.AgentId,
-            Action = action,
-            Resource = resource,
-            Result = "allow",
-            Details = new
+            await _client.LogAuditAsync(new AuditEntry
             {
-                plugin = context.Function.PluginName,
-                function_name = context.Function.Name,
-            }
-        });
+                AgentId = _agentId,
+                Action = action,
+                Result = "allow",
+                Resource = pluginName,
+                Details = new
+                {
+                    function = functionName,
+                    plugin = pluginName,
+                    traceId = _client.TraceId,
+                }
+            });
+        }
     }
+
+    private string FormatAction(string pluginName, string functionName)
+    {
+        return _filterOptions.ActionFormat
+            .Replace("{plugin}", pluginName)
+            .Replace("{function}", functionName);
+    }
+}
+
+/// <summary>
+/// Configuration options for the MeshGuard Semantic Kernel filter.
+/// </summary>
+public class MeshGuardFilterOptions
+{
+    /// <summary>
+    /// Whether to throw <see cref="PolicyDeniedException"/> when a function is denied.
+    /// If false, the function is silently skipped. Default: true.
+    /// </summary>
+    public bool ThrowOnDeny { get; set; } = true;
+
+    /// <summary>
+    /// Whether to log audit entries for allowed function invocations.
+    /// Default: true.
+    /// </summary>
+    public bool AuditEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Format string for the action name. Supports {plugin} and {function} placeholders.
+    /// Default: "invoke:{plugin}.{function}"
+    /// </summary>
+    public string ActionFormat { get; set; } = "invoke:{plugin}.{function}";
 }
