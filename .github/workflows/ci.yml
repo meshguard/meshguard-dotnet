@@ -17,12 +17,36 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ matrix.dotnet-version }}
-      - name: Restore
+
+      # For .NET 6.0/7.0, build only the core SDK and tests (SemanticKernel requires .NET 8.0)
+      - name: Restore (Core)
+        if: matrix.dotnet-version != '8.0.x'
+        run: |
+          dotnet restore src/MeshGuard/MeshGuard.csproj
+          dotnet restore tests/MeshGuard.Tests/MeshGuard.Tests.csproj
+
+      - name: Build (Core)
+        if: matrix.dotnet-version != '8.0.x'
+        run: |
+          dotnet build src/MeshGuard/MeshGuard.csproj --no-restore --configuration Release
+          dotnet build tests/MeshGuard.Tests/MeshGuard.Tests.csproj --no-restore --configuration Release
+
+      - name: Test (Core)
+        if: matrix.dotnet-version != '8.0.x'
+        run: dotnet test tests/MeshGuard.Tests/MeshGuard.Tests.csproj --no-build --configuration Release --verbosity normal
+
+      # For .NET 8.0, build everything including SemanticKernel
+      - name: Restore (Full)
+        if: matrix.dotnet-version == '8.0.x'
         run: dotnet restore
-      - name: Build
+
+      - name: Build (Full)
+        if: matrix.dotnet-version == '8.0.x'
         run: dotnet build --no-restore --configuration Release
-      - name: Test
-        run: dotnet test --no-build --configuration Release --verbosity normal || echo "No tests yet"
+
+      - name: Test (Full)
+        if: matrix.dotnet-version == '8.0.x'
+        run: dotnet test --no-build --configuration Release --verbosity normal
 
   pack:
     runs-on: ubuntu-latest

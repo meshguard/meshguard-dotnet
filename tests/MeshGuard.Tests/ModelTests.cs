@@ -44,17 +44,15 @@ public class ModelTests
     [Fact]
     public void PolicyDecision_DeserializesFromApi()
     {
-        var json = """
-        {
-            "allowed": false,
-            "action": "write:secrets",
-            "decision": "deny",
-            "policy": "security-policy",
-            "rule": "no-secrets",
-            "reason": "Access denied",
-            "traceId": "abc123"
-        }
-        """;
+        var json = @"{
+            ""allowed"": false,
+            ""action"": ""write:secrets"",
+            ""decision"": ""deny"",
+            ""policy"": ""security-policy"",
+            ""rule"": ""no-secrets"",
+            ""reason"": ""Access denied"",
+            ""traceId"": ""abc123""
+        }";
 
         var decision = JsonSerializer.Deserialize<PolicyDecision>(json, _jsonOptions);
 
@@ -158,13 +156,11 @@ public class ModelTests
     [Fact]
     public void HealthStatus_DeserializesFromApi()
     {
-        var json = """
-        {
-            "status": "healthy",
-            "version": "1.2.3",
-            "mode": "production"
-        }
-        """;
+        var json = @"{
+            ""status"": ""healthy"",
+            ""version"": ""1.2.3"",
+            ""mode"": ""production""
+        }";
 
         var health = JsonSerializer.Deserialize<HealthStatus>(json, _jsonOptions);
 
