@@ -1,5 +1,7 @@
 # MeshGuard .NET SDK
 
+> **Maintenance mode:** this SDK remains supported for security patches, bug fixes, and compatibility. New agent-governance features are moving to AGT + MeshGuard. Existing Semantic Kernel integrations remain supported; new Microsoft-agent deployments should evaluate AGT as the in-process PEP with MeshGuard as the neutral control plane.
+
 The official .NET SDK for [MeshGuard](https://meshguard.app) — the governance control plane for AI agents.
 
 Includes first-class support for **Microsoft Semantic Kernel**.
